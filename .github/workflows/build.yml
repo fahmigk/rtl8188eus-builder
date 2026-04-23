@@ -5,7 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install deps
-        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu make bc clang lld llvm libssl-dev python-is-python3
+        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget
+
+      - name: Get ZyC Clang
+        run: |
+          mkdir clang && cd clang
+          wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
+          tar -xf Clang-15.0.7-20251111.tar.gz
+          echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Clone driver
         run: git clone https://github.com/aircrack-ng/rtl8188eus
