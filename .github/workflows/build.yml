@@ -20,8 +20,8 @@ jobs:
           cd rtl8188eus
           sed -i 's/gfp_t kflags = in_atomic/u16 kflags = in_atomic/g' os_dep/linux/rtw_cfgvendor.c
           sed -i 's/-Werror/-Wno-error/g' Makefile
-          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
-      - name: Upload
+          sed -i 's/-Werror/-Wno-error/g' ../kernel/Makefile
+          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: 8188eu-ko
