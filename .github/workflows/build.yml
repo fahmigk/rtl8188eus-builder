@@ -29,7 +29,9 @@ jobs:
           sed -i 's/gfp_t kflags = in_atomic/u16 kflags = in_atomic/g' os_dep/linux/rtw_cfgvendor.c
           sed -i 's/-Werror/-Wno-error/g' Makefile
           sed -i 's/-Werror/-Wno-error/g' ../kernel/Makefile
-          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out EXTRA_CFLAGS="-march=armv8-a+lse"
+          sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' Makefile
+          sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' Makefile
+          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
 
       - name: Upload
         uses: actions/upload-artifact@v4
