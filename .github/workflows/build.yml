@@ -16,14 +16,14 @@ jobs:
       - name: Fix Python script
         run: sed -i 's|#!/usr/bin/env python2|#!/usr/bin/env python3|g' kernel/scripts/gcc-wrapper.py
 
-      - name: Fix driver bug
-        run: sed -i '177s/.*/\t\tu16 kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;/' rtl8188eus/os_dep/linux/rtw_cfgvendor.c
-
       - name: Prepare kernel
         run: cd kernel && make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig && make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
 
-      - name: Build module
-        run: cd rtl8188eus && make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
+      - name: Fix and build module
+        run: |
+          cd rtl8188eus
+          sed -i 's/gfp_t kflags/u16 kflags/g' os_dep/linux/rtw_cfgvendor.c
+          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
 
       - name: Upload
         uses: actions/upload-artifact@v4
