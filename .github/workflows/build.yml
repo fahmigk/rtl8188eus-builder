@@ -12,6 +12,7 @@ jobs:
 
       - name: Clone kernel
         run: git clone https://github.com/liyafe1997/kernel_xiaomi_sm8250_mod -b android15-lineage22-mod --depth=1 kernel
+
       - name: Prepare kernel
         run: cd kernel && make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig && make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
 
@@ -21,7 +22,9 @@ jobs:
           sed -i 's/gfp_t kflags = in_atomic/u16 kflags = in_atomic/g' os_dep/linux/rtw_cfgvendor.c
           sed -i 's/-Werror/-Wno-error/g' Makefile
           sed -i 's/-Werror/-Wno-error/g' ../kernel/Makefile
-          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out      - name: Upload
+          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: 8188eu-ko
