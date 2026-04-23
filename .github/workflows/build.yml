@@ -12,10 +12,6 @@ jobs:
 
       - name: Clone kernel
         run: git clone https://github.com/liyafe1997/kernel_xiaomi_sm8250_mod -b android15-lineage22-mod --depth=1 kernel
-
-      - name: Fix Python script
-        run: sed -i 's|#!/usr/bin/env python2|#!/usr/bin/env python3|g' kernel/scripts/gcc-wrapper.py
-
       - name: Prepare kernel
         run: cd kernel && make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig && make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
 
