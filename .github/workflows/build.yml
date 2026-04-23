@@ -15,7 +15,7 @@ jobs:
           echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Clone driver
-        run: git clone https://github.com/aircrack-ng/rtl8188eus
+        run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
 
       - name: Clone kernel
         run: git clone https://github.com/liyafe1997/kernel_xiaomi_sm8250_mod -b android15-lineage22-mod --depth=1 kernel
@@ -27,10 +27,8 @@ jobs:
         run: |
           cd rtl8188eus
           sed -i 's/gfp_t kflags = in_atomic/u16 kflags = in_atomic/g' os_dep/linux/rtw_cfgvendor.c
-          sed -i 's/-Werror/-Wno-error/g' Makefile
-          sed -i 's/-Werror/-Wno-error/g' ../kernel/Makefile
-          sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' Makefile
-          sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' Makefile
+          sed -i 's/-Werror//g' Makefile
+          sed -i 's/-Werror//g' ../kernel/Makefile
           make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
 
       - name: Upload
