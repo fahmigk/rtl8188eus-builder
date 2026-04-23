@@ -25,12 +25,9 @@ jobs:
 
       - name: Fix and build module
         run: |
+          find kernel/ rtl8188eus/ -name "Makefile*" | xargs sed -i 's/-Werror=[a-z_-]*//g' 2>/dev/null || true
+          find kernel/ rtl8188eus/ -name "Makefile*" | xargs sed -i 's/ -Werror / /g' 2>/dev/null || true
           cd rtl8188eus
-          sed -i 's/-Werror=[a-z_-]*//g' Makefile
-          sed -i 's/ -Werror / /g' Makefile
-          sed -i 's/-Werror=[a-z_-]*//g' ../kernel/Makefile
-          sed -i 's/ -Werror / /g' ../kernel/Makefile
-          sed -i 's/-Werror=[a-z_-]*//g' ../kernel/scripts/Makefile.build
           make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out
 
       - name: Upload
