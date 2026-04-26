@@ -7,7 +7,7 @@ jobs:
       - name: Install deps
         run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget
 
-      - name: Get ZyC Clang
+      - name: Get ZyC Clang 15.0.7
         run: |
           mkdir clang && cd clang
           wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
@@ -18,7 +18,12 @@ jobs:
         run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
 
       - name: Clone kernel
-        run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new --depth=1 kernel
+        run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new --depth=50 kernel
+
+      - name: Checkout matching commit
+        run: |
+          cd kernel
+          git log --oneline | grep -i "cip130\|st14\|c0fd5eb" | head -5
 
       - name: Prepare kernel
         run: |
