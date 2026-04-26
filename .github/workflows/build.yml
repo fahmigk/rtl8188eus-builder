@@ -1,229 +1,76 @@
-name: Build Kernel + RTL8188EUS Module
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
+name: Build 8188eu.ko
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-
     steps:
-      - name: Checkout builder repo
-        uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget zip
 
-      # ── Toolchain ────────────────────────────────────────────────────────────
-      - name: Download ZyC Clang 15.0.7
+      - name: Get ZyC Clang 15.0.7
         run: |
-          mkdir -p $HOME/clang
-          wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230322-release/Clang-15.0.7-20230322.tar.gz \
-            -O clang.tar.gz
-          tar -xzf clang.tar.gz -C $HOME/clang
-          echo "$HOME/clang/bin" >> $GITHUB_PATH
+          mkdir clang && cd clang
+          wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
+          tar -xf Clang-15.0.7-20251111.tar.gz
+          echo "$PWD/bin" >> $GITHUB_PATH
 
-      # ── Kernel source ────────────────────────────────────────────────────────
-      - name: Clone AstideLabs kernel (android16-aptusitu-new)
-        run: |
-          git clone --depth=1 \
-            --branch android16-aptusitu-new \
-            https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 \
-            kernel
+      - name: Clone driver
+        run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
 
-      # ── RTL8188EUS driver ────────────────────────────────────────────────────
-      - name: Clone RTL8188EUS driver (v5.3.9)
-        run: |
-          git clone --depth=1 \
-            --branch v5.3.9 \
-            https://github.com/aircrack-ng/rtl8188eus \
-            rtl8188eus
+      - name: Clone kernel
+        run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new kernel
 
-      # ── AnyKernel3 ───────────────────────────────────────────────────────────
-      - name: Clone AnyKernel3
-        run: |
-          git clone --depth=1 \
-            https://github.com/osm0sis/AnyKernel3 \
-            anykernel
-          # Strip out non-cas device checks so it flashes cleanly
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel/anykernel.sh
+      - name: Checkout exact commit
+        run: cd kernel && git checkout c0fd5eb8c999
 
-      # ── Build environment ────────────────────────────────────────────────────
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            bc bison flex libssl-dev libelf-dev \
-            python3 python2 make gcc \
-            zip binutils-aarch64-linux-gnu \
-            libncurses-dev ccache
-
-      # ── Kernel config ────────────────────────────────────────────────────────
       - name: Configure kernel
         run: |
           cd kernel
-
-          # Base defconfig for cas
-          make O=out \
-            ARCH=arm64 \
-            CC=$HOME/clang/bin/clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            vendor/cas_defconfig
-
-          # ── cfg80211 / wireless stack ─────────────────────────────────────
-          # Change cfg80211 from built-in (y) to module (m) so its symbols
-          # are exported and 8188eu.ko can resolve them at insmod time.
-          scripts/config --file out/.config --set-val CONFIG_CFG80211 m
-          scripts/config --file out/.config --enable  CONFIG_CFG80211_WEXT
-          scripts/config --file out/.config --set-val CONFIG_MAC80211 m
-          scripts/config --file out/.config --enable  CONFIG_CFG80211_DEFAULT_PS
-
-          # ── Disable Qualcomm's in-tree WiFi driver ────────────────────────
-          # The ROM ships and loads its own prebuilt QCACLD blob; the
-          # in-kernel copy is unused and breaks the build when cfg80211=m
-          # because it expects cfg80211 symbols at link time (not module time).
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig
+          scripts/config --file out/.config --module CFG80211
+          scripts/config --file out/.config --module MAC80211
+          scripts/config --file out/.config --enable CFG80211_WEXT
+          scripts/config --file out/.config --enable MAC80211_HAS_RC
+          scripts/config --file out/.config --disable CFG80211_INTERNAL_REGDB
+          scripts/config --file out/.config --disable MODVERSIONS
           scripts/config --file out/.config --disable CONFIG_QCA_CLD_WLAN
           scripts/config --file out/.config --disable CONFIG_QCACLD_WLAN
           scripts/config --file out/.config --disable CONFIG_CLD_HL_SDIO_CORE
-          scripts/config --file out/.config --disable CONFIG_QCA_WIFI_FTM
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 
-          # ── Module versioning ─────────────────────────────────────────────
-          # Disable MODVERSIONS so CRC mismatches don't block insmod.
-          # Vermagic string still must match — that is handled by building
-          # the driver against this exact kernel source tree.
-          scripts/config --file out/.config --disable CONFIG_MODVERSIONS
-
-          # ── Harden module loading (keep signature check off) ─────────────
-          scripts/config --file out/.config --disable CONFIG_MODULE_SIG
-          scripts/config --file out/.config --disable CONFIG_MODULE_SIG_FORCE
-
-          # Resolve any new dependency prompts non-interactively
-          make O=out \
-            ARCH=arm64 \
-            CC=$HOME/clang/bin/clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            olddefconfig
-
-      # ── Build kernel ─────────────────────────────────────────────────────────
       - name: Build kernel
         run: |
           cd kernel
-          make -j$(nproc) O=out \
-            ARCH=arm64 \
-            CC=$HOME/clang/bin/clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            Image dtbs modules 2>&1 | tee out/build.log
-
-          # Fail loudly if Image wasn't produced — catch it here before
-          # packaging so the error is obvious in the log above.
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 -j$(nproc)
           if [ ! -f out/arch/arm64/boot/Image ]; then
-            echo "ERROR: Image not found — kernel build failed. Check build.log above."
+            echo "ERROR: Image not produced"
             exit 1
           fi
 
-      # ── Install kernel modules ────────────────────────────────────────────────
-      - name: Install kernel modules to staging dir
+      - name: Build module
         run: |
-          cd kernel
-          make -j$(nproc) O=out \
-            ARCH=arm64 \
-            CC=$HOME/clang/bin/clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            INSTALL_MOD_PATH=../modules_staging \
-            modules_install
+          cd rtl8188eus
+          make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- \
+            KSRC=../kernel/out \
+            KCFLAGS="-Wno-error -Wno-constant-conversion -Wno-implicit-int-conversion -Wno-unknown-warning-option"
 
-      # ── Build RTL8188EUS module ───────────────────────────────────────────────
-      - name: Build RTL8188EUS (8188eu.ko)
+      - name: Clone AnyKernel3
         run: |
-          # Point the driver build at our freshly-built kernel tree so
-          # vermagic and symbol versions align exactly.
-          make -j$(nproc) -C kernel/out \
-            M=$GITHUB_WORKSPACE/rtl8188eus \
-            ARCH=arm64 \
-            CC=$HOME/clang/bin/clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            LLVM=1 \
-            modules 2>&1 | tee rtl8188eus/build.log
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 anykernel
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel/anykernel.sh
 
-          if [ ! -f rtl8188eus/8188eu.ko ]; then
-            echo "ERROR: 8188eu.ko not produced. Check rtl8188eus/build.log above."
-            exit 1
-          fi
-
-          echo "--- 8188eu.ko vermagic ---"
-          modinfo rtl8188eus/8188eu.ko | grep vermagic
-          echo "--- kernel vermagic ---"
-          modinfo kernel/out/net/wireless/cfg80211.ko | grep vermagic
-
-      # ── Package kernel zip ────────────────────────────────────────────────────
-      - name: Package kernel zip (AnyKernel3)
+      - name: Package kernel zip
         run: |
           cp kernel/out/arch/arm64/boot/Image anykernel/
-
-          # cfg80211.ko and mac80211.ko need to be pushed alongside 8188eu.ko
-          # since we moved them from built-in to modules.
-          mkdir -p anykernel/modules/system/lib/modules
-
-          # Wireless stack modules
-          cp kernel/out/net/wireless/cfg80211.ko \
-             anykernel/modules/system/lib/modules/
-          cp kernel/out/net/mac80211/mac80211.ko \
-             anykernel/modules/system/lib/modules/ 2>/dev/null || true
-
-          # RTL8188EUS driver
-          cp rtl8188eus/8188eu.ko \
-             anykernel/modules/system/lib/modules/
-
-          # Wire AnyKernel3 to load the modules on flash
-          cat >> anykernel/anykernel.sh <<'EOF'
-
-          # Load wireless stack then RTL8188EUS
-          insmod /system/lib/modules/cfg80211.ko
-          insmod /system/lib/modules/mac80211.ko 2>/dev/null || true
-          insmod /system/lib/modules/8188eu.ko
-EOF
-
+          cp rtl8188eus/8188eu.ko anykernel/
           cd anykernel
           zip -r9 ../kernel-cas-monitor.zip . -x .git README.md
 
-      # ── Upload artifacts ──────────────────────────────────────────────────────
       - name: Upload kernel zip
         uses: actions/upload-artifact@v4
         with:
           name: kernel-cas-monitor
           path: kernel-cas-monitor.zip
-          retention-days: 7
-
-      - name: Upload 8188eu.ko (standalone)
-        uses: actions/upload-artifact@v4
-        with:
-          name: 8188eu-module
-          path: rtl8188eus/8188eu.ko
-          retention-days: 7
-
-      - name: Upload cfg80211.ko (required companion)
-        uses: actions/upload-artifact@v4
-        with:
-          name: cfg80211-module
-          path: kernel/out/net/wireless/cfg80211.ko
-          retention-days: 7
-
-      - name: Upload build logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            kernel/out/build.log
-            rtl8188eus/build.log
-          retention-days: 7
 
       - name: Upload module only
         uses: actions/upload-artifact@v4
