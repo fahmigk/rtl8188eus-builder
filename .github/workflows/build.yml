@@ -1,11 +1,11 @@
-name: Build 8188eu.ko
+name: Build Kernel + 8188eu.ko
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Install deps
-        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget
+        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget zip
 
       - name: Get ZyC Clang 15.0.7
         run: |
@@ -14,28 +14,54 @@ jobs:
           tar -xf Clang-15.0.7-20251111.tar.gz
           echo "$PWD/bin" >> $GITHUB_PATH
 
-      - name: Clone driver
-        run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
-
       - name: Clone kernel
         run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new kernel
 
       - name: Checkout exact commit
         run: cd kernel && git checkout c0fd5eb8c999
 
-      - name: Prepare kernel
+      - name: Configure kernel
         run: |
           cd kernel
           make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig
+          scripts/config --file out/.config --module CFG80211
+          scripts/config --file out/.config --module MAC80211
+          scripts/config --file out/.config --enable CFG80211_WEXT
+          scripts/config --file out/.config --enable MAC80211_HAS_RC
+          scripts/config --file out/.config --disable CFG80211_INTERNAL_REGDB
           scripts/config --file out/.config --disable MODVERSIONS
-          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 
-      - name: Fix and build module
+      - name: Clone AnyKernel3
+        run: git clone https://github.com/osm0sis/AnyKernel3 --depth=1 anykernel
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) 2>&1 | tail -20
+
+      - name: Clone driver
+        run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
+
+      - name: Build module
         run: |
           cd rtl8188eus
           make ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- KSRC=../kernel/out KCFLAGS="-Wno-error -Wno-constant-conversion -Wno-implicit-int-conversion -Wno-unknown-warning-option"
 
-      - name: Upload
+      - name: Package kernel zip
+        run: |
+          cp kernel/out/arch/arm64/boot/Image anykernel/
+          cp kernel/out/drivers/net/wireless/realtek/rtl8188eu/8188eu.ko anykernel/ 2>/dev/null || cp rtl8188eus/8188eu.ko anykernel/
+          cd anykernel
+          zip -r9 ../kernel-cas-monitor.zip * -x .git README.md
+
+      - name: Upload kernel zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-cas-monitor
+          path: kernel-cas-monitor.zip
+
+      - name: Upload module only
         uses: actions/upload-artifact@v4
         with:
           name: 8188eu-ko
