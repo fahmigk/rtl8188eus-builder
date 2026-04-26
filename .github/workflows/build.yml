@@ -18,12 +18,10 @@ jobs:
         run: git clone https://github.com/aircrack-ng/rtl8188eus -b v5.3.9
 
       - name: Clone kernel
-        run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new --depth=50 kernel
+        run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new kernel
 
-      - name: Checkout matching commit
-        run: |
-          cd kernel
-          git log --oneline | grep -i "cip130\|st14\|c0fd5eb" | head -5
+      - name: Checkout exact commit
+        run: cd kernel && git checkout c0fd5eb8c999
 
       - name: Prepare kernel
         run: |
