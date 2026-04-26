@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install deps
-        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget
+        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make bc lld llvm libssl-dev python-is-python3 wget
 
       - name: Get ZyC Clang
         run: |
@@ -21,7 +21,10 @@ jobs:
         run: git clone https://github.com/AstideLabs/android_kernel_xiaomi_sm8250 -b android16-aptusitu-new --depth=1 kernel
 
       - name: Prepare kernel
-        run: cd kernel && make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig && make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
+        run: |
+          cd kernel
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
 
       - name: Fix and build module
         run: |
