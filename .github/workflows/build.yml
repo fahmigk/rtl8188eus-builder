@@ -27,6 +27,7 @@ jobs:
         run: |
           cd kernel
           make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- cas_defconfig
+          scripts/config --file out/.config --disable MODVERSIONS
           make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare -j$(nproc)
 
       - name: Fix and build module
